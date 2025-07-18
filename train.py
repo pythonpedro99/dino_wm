@@ -674,6 +674,8 @@ class Trainer:
                     self.cfg.frameskip
                 ]
             act = act[start : start + horizon * self.cfg.frameskip]
+            if act.ndim == 1:
+               act = act.unsqueeze(-1)  # shape [T] -> [T, 1]
             act = rearrange(act, "(h f) d -> h (f d)", f=self.cfg.frameskip)
 
             obs_g = {}

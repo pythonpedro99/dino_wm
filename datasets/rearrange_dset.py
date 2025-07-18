@@ -48,7 +48,7 @@ class RearrangeDataset(TrajDataset):
             self.action_dim = 0
             
         self.state_dim = 0
-        self.proprio_dim = 0
+        self.proprio_dim = 1
 
         if normalize_action and len(self.actions) > 0:
             all_actions = torch.cat(self.actions, dim=0)
@@ -127,6 +127,8 @@ def load_rearrange_slice_train_val(
         num_frames=num_hist + num_pred,
         frameskip=frameskip,
     )
+
+    # if n_slices is None, we sample a subset out of the train/val slices
 
     # Return both the individual-frame slices and the trajectory datasets
     datasets = {"train": train_slices, "valid": val_slices}

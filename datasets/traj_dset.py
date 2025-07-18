@@ -92,29 +92,16 @@ class TrajSlicerDataset(TrajDataset):
     def __getitem__(self, idx):
         i, start, end = self.slices[idx]
         obs, act, state, _ = self.dataset[i]
-
-        # slice/subsample obs and state as before
         for k, v in obs.items():
             obs[k] = v[start:end:self.frameskip]
         state = state[start:end:self.frameskip]
-
-        # slice actions (no subsample here)
         act = act[start:end]
-
-        # now handle 1-D vs ND actions
-        # desired output: (num_frames, f*action_dim)
         n = self.num_frames
         f = self.frameskip
-
         if act.ndim == 1:
-            # act.shape == (n*f,)
-            # reshape → (n, f)
             act = act.reshape(n, f)
         else:
-            # act.shape == (n*f, d)
-            # reshape → (n, f*d)
             act = act.reshape(n, f * act.shape[-1])
-
         return obs, act, state
 
     # def __getitem__(self, idx):

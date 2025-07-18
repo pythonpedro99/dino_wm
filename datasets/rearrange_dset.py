@@ -7,7 +7,7 @@ from typing import Callable, Optional
 import numpy as np
 import torch
 from einops import rearrange
-from torch.utils.data import Subset
+from torch.utils.data import Dataset
 
 from .traj_dset import TrajDataset, get_train_val_sliced, TrajSlicerDataset
 
@@ -100,6 +100,28 @@ class RearrangeDataset(TrajDataset):
             return rearrange(imgs, "b h w c -> b c h w") / 255.0
 
 
+class FilteredDatasetWrapper(Dataset):
+    def __init__(self, base_dataset, indices):
+        self.base = base_dataset
+        self.indices = indices
+
+        # Forward metadata attributes
+        for attr in [
+            "proprio_dim", "state_dim", "action_dim",
+            "proprio_mean", "proprio_std",
+            "state_mean", "state_std",
+            "action_mean", "action_std",
+        ]:
+            if hasattr(base_dataset, attr):
+                setattr(self, attr, getattr(base_dataset, attr))
+
+    def __getitem__(self, idx):
+        return self.base[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
+
+
 def select_condition_then_sample_rest(dataset, n_slices, target_actions={4, 5}, seed=42, verbose=False):
     """
     Selects all slices where action[-2] ∈ target_actions,
@@ -134,7 +156,7 @@ def select_condition_then_sample_rest(dataset, n_slices, target_actions={4, 5}, 
         sampled_rest = random.sample(non_match_indices, min(n_remaining, len(non_match_indices)))
         sampled_indices = match_indices + sampled_rest
 
-    return Subset(dataset, sampled_indices)
+    return FilteredDatasetWrapper(dataset, sampled_indices)
 
 
 def load_rearrange_slice_train_val(
@@ -199,3 +221,4 @@ def load_rearrange_slice_train_val(
     datasets = {"train": train_slices, "valid": val_slices}
     traj_dset = {"train": dset_train, "valid": dset_val}
     return datasets, traj_dset
+

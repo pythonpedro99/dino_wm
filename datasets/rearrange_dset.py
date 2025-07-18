@@ -1,11 +1,13 @@
 import json
 import os
+import random
 from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
 import torch
 from einops import rearrange
+from torch.utils.data import Subset
 
 from .traj_dset import TrajDataset, get_train_val_sliced, TrajSlicerDataset
 
@@ -46,7 +48,7 @@ class RearrangeDataset(TrajDataset):
             )
         else:
             self.action_dim = 0
-            
+
         self.state_dim = 0
         self.proprio_dim = 1
 
@@ -98,6 +100,43 @@ class RearrangeDataset(TrajDataset):
             return rearrange(imgs, "b h w c -> b c h w") / 255.0
 
 
+def select_condition_then_sample_rest(dataset, n_slices, target_actions={4, 5}, seed=42, verbose=False):
+    """
+    Selects all slices where action[-2] ∈ target_actions,
+    then adds random samples from the rest until n_slices is reached.
+    Seeding ensures reproducibility.
+    """
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    match_indices = []
+    non_match_indices = []
+
+    for idx in range(len(dataset)):
+        obs, act, state = dataset[idx]
+        if act.shape[0] >= 2:
+            last_action = act[-2]
+            action_val = int(last_action.item()) if last_action.ndim == 0 else int(last_action[0].item())
+            if action_val in target_actions:
+                match_indices.append(idx)
+            else:
+                non_match_indices.append(idx)
+        else:
+            non_match_indices.append(idx)
+
+    if verbose:
+        print(f"[Filter] Matched: {len(match_indices)} | Non-matched: {len(non_match_indices)}")
+
+    if len(match_indices) > n_slices:
+        sampled_indices = random.sample(match_indices, n_slices)
+    else:
+        n_remaining = n_slices - len(match_indices)
+        sampled_rest = random.sample(non_match_indices, min(n_remaining, len(non_match_indices)))
+        sampled_indices = match_indices + sampled_rest
+
+    return Subset(dataset, sampled_indices)
+
+
 def load_rearrange_slice_train_val(
     transform,
     n_rollout: int = 200,
@@ -107,12 +146,20 @@ def load_rearrange_slice_train_val(
     num_hist: int = 3,
     num_pred: int = 1,
     frameskip: int = 1,
+    # Filtering options
+    filter_train: bool = False,
+    filter_val: bool = False,
+    n_slices_train: Optional[int] = None,
+    n_slices_val: Optional[int] = None,
+    filter_actions: set = {4, 5},
+    seed_train: int = 42,
+    seed_val: int = 99,
+    verbose: bool = False,
 ):
     """
-    Loads the RearrangeDataset, splits it into train/validation trajectories,
-    and returns both the sliced frames and the underlying trajectory datasets.
+    Loads RearrangeDataset, slices into train/val, and optionally filters both
+    using action[-2] match logic.
     """
-    # Instantiate the full dataset
     dset = RearrangeDataset(
         n_rollout=n_rollout,
         transform=transform,
@@ -120,7 +167,6 @@ def load_rearrange_slice_train_val(
         normalize_action=normalize_action,
     )
 
-    # Slice into train/val
     dset_train, dset_val, train_slices, val_slices = get_train_val_sliced(
         traj_dataset=dset,
         train_fraction=split_ratio,
@@ -128,9 +174,28 @@ def load_rearrange_slice_train_val(
         frameskip=frameskip,
     )
 
-    # if n_slices is None, we sample a subset out of the train/val slices
+    if filter_train:
+        if n_slices_train is None:
+            raise ValueError("n_slices_train must be set if filter_train is True")
+        train_slices = select_condition_then_sample_rest(
+            dataset=train_slices,
+            n_slices=n_slices_train,
+            target_actions=filter_actions,
+            seed=seed_train,
+            verbose=verbose,
+        )
 
-    # Return both the individual-frame slices and the trajectory datasets
+    if filter_val:
+        if n_slices_val is None:
+            raise ValueError("n_slices_val must be set if filter_val is True")
+        val_slices = select_condition_then_sample_rest(
+            dataset=val_slices,
+            n_slices=n_slices_val,
+            target_actions=filter_actions,
+            seed=seed_val,
+            verbose=verbose,
+        )
+
     datasets = {"train": train_slices, "valid": val_slices}
     traj_dset = {"train": dset_train, "valid": dset_val}
     return datasets, traj_dset

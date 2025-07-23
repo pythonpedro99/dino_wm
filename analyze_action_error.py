@@ -89,24 +89,24 @@ def main():
     error_by_action = defaultdict(list)
 
     with torch.no_grad():
-    for obs, act, _ in loader:
-        obs = {k: v.to(device) for k, v in obs.items()}
-        act = act.to(device)
+        for obs, act, _ in loader:
+            obs = {k: v.to(device) for k, v in obs.items()}
+            act = act.to(device)
 
-        z_out, _, _, _, _ = model(obs, act)
-        z_obs_out, _ = model.separate_emb(z_out)
+            z_out, _, _, _, _ = model(obs, act)
+            z_obs_out, _ = model.separate_emb(z_out)
 
-        z_gt = model.encode_obs(obs)
-        z_tgt = slice_trajdict_with_t(z_gt, start_idx=model.num_pred)
+            z_gt = model.encode_obs(obs)
+            z_tgt = slice_trajdict_with_t(z_gt, start_idx=model.num_pred)
 
-        per_sample_err = compute_error(z_obs_out, z_tgt, model.emb_criterion)
+            per_sample_err = compute_error(z_obs_out, z_tgt, model.emb_criterion)
 
-        # Extract discrete class label at time step -2 and feature index 0
-        # adjust if you store class elsewhere
-        class_labels = act[:, -2, 0].cpu().long()
+            # Extract discrete class label at time step -2 and feature index 0
+            # adjust if you store class elsewhere
+            class_labels = act[:, -2, 0].cpu().long()
 
-        for err, cls in zip(per_sample_err.cpu(), class_labels):
-            error_by_action[int(cls.item())].append(err.item())
+            for err, cls in zip(per_sample_err.cpu(), class_labels):
+                error_by_action[int(cls.item())].append(err.item())
 
 
 if __name__ == "__main__":

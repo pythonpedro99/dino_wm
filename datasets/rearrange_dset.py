@@ -188,6 +188,7 @@ def load_rearrange_slice_train_val(
         data_path=data_path,
         normalize_action=normalize_action,
     )
+    print("created dset")
 
     dset_train, dset_val, train_slices, val_slices = get_train_val_sliced(
         traj_dataset=dset,
@@ -195,6 +196,7 @@ def load_rearrange_slice_train_val(
         num_frames=num_hist + num_pred,
         frameskip=frameskip,
     )
+    print("created dset_train, dset_val, train_slices, val_slices ")
 
     if filter_train:
         if n_slices_train is None:
@@ -206,6 +208,7 @@ def load_rearrange_slice_train_val(
             seed=seed_train,
             verbose=verbose,
         )
+        print("filtered train_slices")
 
     if filter_val:
         if n_slices_val is None:
@@ -217,6 +220,8 @@ def load_rearrange_slice_train_val(
             seed=seed_val,
             verbose=verbose,
         )
+        print("filtered val_slices")
+    
 
     datasets = {"train": train_slices, "valid": val_slices}
     traj_dset = {"train": dset_train, "valid": dset_val}

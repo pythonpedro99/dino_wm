@@ -128,11 +128,13 @@ def select_condition_then_sample_rest(dataset, n_slices, target_actions={4, 5}, 
     All slices whose ``action[-2]`` is contained in ``target_actions`` are
     selected first.  If ``dataset`` is a :class:`TrajSlicerDataset` (or exposes
     ``slices`` and ``dataset.actions`` attributes), the action for each slice is
-    computed directly from ``dataset.slices[idx]`` and the underlying
-    ``dataset.dataset.actions`` without invoking ``dataset[idx]``.  Datasets
-    without these attributes fall back to calling ``dataset[idx]``.  Random
-    samples from the remaining slices are then added until ``n_slices`` entries
-    are obtained.  ``seed`` ensures deterministic sampling.
+    reconstructed directly from ``dataset.slices[idx]`` and the underlying
+    ``dataset.dataset.actions`` without invoking ``dataset[idx]``.  When the
+    underlying dataset is a ``Subset``, ``dataset.dataset.indices`` is used to
+    map slice indices back to the original trajectories.  Datasets without these
+    attributes fall back to calling ``dataset[idx]``.  Random samples from the
+    remaining slices are then added until ``n_slices`` entries are obtained.
+    ``seed`` ensures deterministic sampling.
     """
     random.seed(seed)
     torch.manual_seed(seed)
@@ -147,6 +149,8 @@ def select_condition_then_sample_rest(dataset, n_slices, target_actions={4, 5}, 
             and hasattr(dataset.dataset, "actions")
         ):
             traj_idx, start, end = dataset.slices[idx]
+            if hasattr(dataset.dataset, "indices"):
+                traj_idx = dataset.dataset.indices[traj_idx]
             act = dataset.dataset.actions[traj_idx][start:end]
             act = torch.as_tensor(act)
             num_frames = getattr(dataset, "num_frames", act.shape[0])

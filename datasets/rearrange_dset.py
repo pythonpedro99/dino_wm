@@ -137,7 +137,7 @@ def select_condition_then_sample_rest(dataset, n_slices, target_actions={4, 5}, 
     for idx in range(len(dataset)):
         obs, act, state = dataset[idx]
         if act.shape[0] >= 2:
-            last_action = act[-2]
+            last_action = act[-1]
             action_val = int(last_action.item()) if last_action.ndim == 0 else int(last_action[0].item())
             if action_val in target_actions:
                 match_indices.append(idx)

@@ -106,8 +106,8 @@ def main():
 
             per_sample_err = compute_error(z_obs_out, z_tgt, model.emb_criterion)
 
-            # De-normalize actions to extract true class label at timestep -2
-            true_values = act[:, -2, 0] * action_std + action_mean
+            # De-normalize actions to extract true class label at timestep -1
+            true_values = act[:, -1, 0] * action_std + action_mean
             class_labels = true_values.round().long().cpu()
 
             for err, cls in zip(per_sample_err.cpu(), class_labels):

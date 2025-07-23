@@ -123,10 +123,16 @@ class FilteredDatasetWrapper(Dataset):
 
 
 def select_condition_then_sample_rest(dataset, n_slices, target_actions={4, 5}, seed=42, verbose=False):
-    """
-    Selects all slices where action[-2] ∈ target_actions,
-    then adds random samples from the rest until n_slices is reached.
-    Seeding ensures reproducibility.
+    """Filter ``dataset`` based on the second-to-last action of each slice.
+
+    All slices whose ``action[-2]`` is contained in ``target_actions`` are
+    selected first.  If ``dataset`` is a :class:`TrajSlicerDataset` (or exposes
+    ``slices`` and ``dataset.actions`` attributes), the action for each slice is
+    computed directly from ``dataset.slices[idx]`` and the underlying
+    ``dataset.dataset.actions`` without invoking ``dataset[idx]``.  Datasets
+    without these attributes fall back to calling ``dataset[idx]``.  Random
+    samples from the remaining slices are then added until ``n_slices`` entries
+    are obtained.  ``seed`` ensures deterministic sampling.
     """
     random.seed(seed)
     torch.manual_seed(seed)
@@ -135,7 +141,23 @@ def select_condition_then_sample_rest(dataset, n_slices, target_actions={4, 5}, 
     non_match_indices = []
 
     for idx in range(len(dataset)):
-        obs, act, state = dataset[idx]
+        if isinstance(dataset, TrajSlicerDataset) or (
+            hasattr(dataset, "slices")
+            and hasattr(dataset, "dataset")
+            and hasattr(dataset.dataset, "actions")
+        ):
+            traj_idx, start, end = dataset.slices[idx]
+            act = dataset.dataset.actions[traj_idx][start:end]
+            act = torch.as_tensor(act)
+            num_frames = getattr(dataset, "num_frames", act.shape[0])
+            frameskip = getattr(dataset, "frameskip", 1)
+            if act.ndim == 1:
+                act = act.reshape(num_frames, frameskip)
+            else:
+                act = act.reshape(num_frames, frameskip * act.shape[-1])
+        else:
+            _, act, _ = dataset[idx]
+
         if act.shape[0] >= 2:
             last_action = act[-2]
             action_val = int(last_action.item()) if last_action.ndim == 0 else int(last_action[0].item())

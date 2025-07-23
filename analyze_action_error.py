@@ -15,7 +15,6 @@ from plan import load_model
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
-
     parser = argparse.ArgumentParser(
         description="Analyze prediction error grouped by action class"
     )
@@ -39,18 +38,16 @@ def parse_args() -> argparse.Namespace:
         "--round_decimals",
         type=int,
         default=2,
-        help="Number of decimals to round actions for grouping",
+        help="Number of decimals to round actions for grouping (used if needed)",
     )
     return parser.parse_args()
 
 
 def compute_error(z_pred, z_tgt, criterion) -> torch.Tensor:
     """Return mean embedding error per sample."""
-
     errors = {}
     for key in z_pred:
         errors[key] = criterion(z_pred[key], z_tgt[key]).view(-1)
-
     return torch.stack(list(errors.values()), dim=0).mean(dim=0)
 
 
@@ -61,14 +58,16 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    datasets, _ = hydra.utils.call(
+    datasets, traj_dsets = hydra.utils.call(
         cfg.env.dataset,
         num_hist=cfg.num_hist,
         num_pred=cfg.num_pred,
         frameskip=cfg.frameskip,
     )
     dset = datasets["valid"]
+    traj_dset = traj_dsets["valid"]
     num_workers = int(getattr(cfg.env, "num_workers", 0))
+
     loader = DataLoader(
         dset, batch_size=args.batch_size, shuffle=False, num_workers=num_workers
     )
@@ -83,8 +82,14 @@ def main():
             ckpt_path = max(candidates, key=lambda p: int(p.stem.split("_")[-1]))
     else:
         ckpt_path = ckpt_dir / f"model_{args.epoch}.pth"
+
     model = load_model(ckpt_path, cfg, cfg.num_action_repeat, device=device)
     model.eval()
+
+    # Get normalization parameters
+    action_mean = torch.tensor(traj_dset.action_mean.item(), device=device)
+    action_std = torch.tensor(traj_dset.action_std.item(), device=device)
+
 
     error_by_action = defaultdict(list)
 
@@ -101,12 +106,17 @@ def main():
 
             per_sample_err = compute_error(z_obs_out, z_tgt, model.emb_criterion)
 
-            # Extract discrete class label at time step -2 and feature index 0
-            # adjust if you store class elsewhere
-            class_labels = act[:, -2, 0].cpu().long()
+            # De-normalize actions to extract true class label at timestep -2
+            true_values = act[:, -2, 0] * action_std + action_mean
+            class_labels = true_values.round().long().cpu()
 
             for err, cls in zip(per_sample_err.cpu(), class_labels):
                 error_by_action[int(cls.item())].append(err.item())
+
+    print("Prediction error by action class:")
+    for action, errs in sorted(error_by_action.items()):
+        mean_err = sum(errs) / len(errs)
+        print(f"Action {action}: {mean_err:.6f}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import argparse
 from collections import defaultdict
 """Analyze world model prediction error grouped by action."""
+import torch.nn as nn
 
 from pathlib import Path
 
@@ -44,11 +45,21 @@ def parse_args() -> argparse.Namespace:
 
 
 def compute_error(z_pred, z_tgt, criterion) -> torch.Tensor:
-    """Return mean embedding error per sample."""
-    errors = {}
+    """Return mean embedding error per sample (along batch)."""
+    per_sample_errors = []
     for key in z_pred:
-        errors[key] = criterion(z_pred[key], z_tgt[key]).view(-1)
-    return torch.stack(list(errors.values()), dim=0).mean(dim=0)
+        # criterion returns (B, ...) → reduce only non-batch dims
+        err = criterion(z_pred[key], z_tgt[key])
+        while err.ndim > 1:
+            err = err.mean(dim=-1)  # reduce feature dims
+        per_sample_errors.append(err)  # shape (B,)
+    
+    # Stack all keys (e.g., visual, proprio...) → shape (num_keys, B)
+    per_sample_errors = torch.stack(per_sample_errors, dim=0)
+
+    # Average over keys → shape (B,)
+    return per_sample_errors.mean(dim=0)
+
 
 
 def main():
@@ -92,27 +103,38 @@ def main():
 
 
     error_by_action = defaultdict(list)
+    print(f"Total number of samples in dataset: {len(dset)}")
+    print(f"Total number of batches: {len(loader)}")
+
 
     with torch.no_grad():
         for obs, act, _ in loader:
             obs = {k: v.to(device) for k, v in obs.items()}
             act = act.to(device)
+            print(f"Processing batch with size: {act.shape}")
+
 
             z_out, _, _, _, _ = model(obs, act)
             z_obs_out, _ = model.separate_emb(z_out)
 
             z_gt = model.encode_obs(obs)
             z_tgt = slice_trajdict_with_t(z_gt, start_idx=model.num_pred)
+            print(model.emb_criterion)
 
-            per_sample_err = compute_error(z_obs_out, z_tgt, model.emb_criterion)
+            per_sample_err = compute_error(z_obs_out, z_tgt, nn.MSELoss(reduction='none'))
+            print(f"per_sample_err shape: {per_sample_err.shape}")
+
+
 
             # De-normalize actions to extract true class label at timestep -1
             true_values = act[:, -1, 0] * action_std + action_mean
             class_labels = torch.floor(true_values + 0.5).long().cpu()
+            print(f"class_labels shape: {class_labels.shape}")
+            #print(f"true_value:{true_values}, classlabel:{class_labels}")
+            for i, (err, cls) in enumerate(zip(per_sample_err.cpu(), class_labels)):
+              print(f"[{i}] class={cls.item()}, err={err.item()}")
+              error_by_action[int(cls.item())].append(err.item())
 
-
-            for err, cls in zip(per_sample_err.cpu(), class_labels):
-                error_by_action[int(cls.item())].append(err.item())
 
     print("Prediction error by action class:")
     for action, errs in sorted(error_by_action.items()):

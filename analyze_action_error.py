@@ -108,7 +108,8 @@ def main():
 
             # De-normalize actions to extract true class label at timestep -1
             true_values = act[:, -1, 0] * action_std + action_mean
-            class_labels = true_values.round().long().cpu()
+            class_labels = torch.floor(true_values + 0.5).long().cpu()
+
 
             for err, cls in zip(per_sample_err.cpu(), class_labels):
                 error_by_action[int(cls.item())].append(err.item())

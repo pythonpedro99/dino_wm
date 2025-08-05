@@ -2,7 +2,7 @@ name: dino_wm
 channels:
   - conda-forge
 dependencies:
-  - python=3.9
+  - python=3.10
   - pip
   - ffmpeg
   - matplotlib
@@ -36,9 +36,11 @@ dependencies:
       - pytest==8.3.5
       - shapely==2.0.7
       - torch==2.2.2
+      - accelerate
       - hydra-submitit-launcher==1.2.0
       - torchvision==0.17.2
       - wandb==0.13.1
       - miniworld @ git+https://github.com/pythonpedro99/JEPAWorld.git@9c56fc6f7b7b1455d1551a944865bb937011e645#egg=miniworld&subdirectory=Miniworld
       - submitit
       - einops
+      - gym

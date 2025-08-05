@@ -22,6 +22,8 @@ from preprocessor import Preprocessor
 from planning.evaluator import PlanEvaluator
 from utils import cfg_to_dict, seed
 
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 warnings.filterwarnings("ignore")
 log = logging.getLogger(__name__)
 

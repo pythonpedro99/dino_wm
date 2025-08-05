@@ -9,13 +9,13 @@ import torch
 from einops import rearrange
 from torch.utils.data import Dataset
 
-from traj_dset import TrajDataset, get_train_val_sliced, TrajSlicerDataset
+from .traj_dset import TrajDataset, get_train_val_sliced, TrajSlicerDataset
 
 
 class RearrangeDataset(TrajDataset):
     def __init__(
         self,
-        data_path: str = str(Path(os.getenv("DATASET_DIR")) / "rearrange_1k"),
+        data_path: str = '/Users/julianquast/Documents/Bachelor Thesis/Datasets/rearrange_2k_v1/rearrange_2000',
         n_rollout: Optional[int] = None,
         transform: Optional[Callable] = None,
         normalize_action: bool = False,

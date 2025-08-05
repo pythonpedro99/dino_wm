@@ -9,7 +9,7 @@ import torch
 from einops import rearrange
 from torch.utils.data import Dataset
 
-from .traj_dset import TrajDataset, get_train_val_sliced, TrajSlicerDataset
+from traj_dset import TrajDataset, get_train_val_sliced, TrajSlicerDataset
 
 
 class RearrangeDataset(TrajDataset):

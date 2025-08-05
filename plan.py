@@ -1,5 +1,6 @@
 import os
 import gym
+import gymnasium as gym
 import json
 import hydra
 import random
@@ -23,6 +24,7 @@ from utils import cfg_to_dict, seed
 
 warnings.filterwarnings("ignore")
 log = logging.getLogger(__name__)
+
 
 ALL_MODEL_KEYS = [
     "encoder",

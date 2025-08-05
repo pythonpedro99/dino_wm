@@ -4,10 +4,10 @@ import colorsys
 from miniworld.entity import Box, Ball, Key, COLOR_NAMES
 from miniworld.miniworld import MiniWorldEnv, Agent
 from miniworld.entity import TextFrame, ImageFrame
-import math_utils
+import math
 from typing import Any, Dict, Optional, Tuple
 from gymnasium.core import ObsType
-import numpy as np
+import numpy as np 
 import string
 
 
@@ -58,7 +58,7 @@ class RearrangeOneRoom(MiniWorldEnv, utils.EzPickle):
             ceil_tex=None,
             wall_color=wall_color,
             floor_color=floor_color,
-            ceil_color=ceil_color,
+            ceil_color=ceil_color
         )
 
         offset_from_wall = 0.7
@@ -77,10 +77,8 @@ class RearrangeOneRoom(MiniWorldEnv, utils.EzPickle):
         self.place_agent(
             pos=(agent_x, 0, agent_z),
             dir=yaw,
-            min_x=min_x,
-            max_x=max_x,
-            min_z=min_z,
-            max_z=max_z,
+            min_x=min_x, max_x=max_x,
+            min_z=min_z, max_z=max_z,
         )
 
         entity_classes = [Box, Ball, Key]
@@ -96,7 +94,7 @@ class RearrangeOneRoom(MiniWorldEnv, utils.EzPickle):
             if all(math.hypot(x - px, z - pz) >= min_sep for px, pz in positions):
                 positions.append((x, z))
 
-        for x, z in positions:
+        for (x, z) in positions:
             yaw = self.rng.uniform(0.0, 2 * math.pi)
             entity_cls = self.rng.choice(entity_classes)
             size = self.rng.uniform(0.2, 0.5)
@@ -111,7 +109,7 @@ class RearrangeOneRoom(MiniWorldEnv, utils.EzPickle):
 
         def rand_label():
             length = self.rng.randint(1, 5)
-            return "".join(self.rng.choices(string.ascii_uppercase, k=length))
+            return ''.join(self.rng.choices(string.ascii_uppercase, k=length))
 
         TEXT_HEIGHT, TEXT_DEPTH, TEXT_Y = 1.0, 0.75, 1.20
         PIC_WIDTH, PIC_Y = 1.8, 1.35
@@ -137,13 +135,16 @@ class RearrangeOneRoom(MiniWorldEnv, utils.EzPickle):
                     dir=dir_ang,
                     str=rand_label(),
                     height=TEXT_HEIGHT,
-                    depth=TEXT_DEPTH,
+                    depth=TEXT_DEPTH
                 )
 
             self.entities.append(ent)
 
     def reset(
-        self, *, seed: Optional[int] = None, options: Optional[dict] = None
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[dict] = None
     ) -> Tuple[ObsType, Dict[str, Any]]:
         # Call parent reset to set Gym and MiniWorld seeds properly
         super().reset(seed=seed)

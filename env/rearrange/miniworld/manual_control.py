@@ -1,9 +1,8 @@
 import sys
-
 sys.path = [p for p in sys.path if "miniworld" not in p]
 
 
-import math_utils
+import math
 
 import pyglet
 from pyglet.window import key
@@ -11,15 +10,14 @@ from gymnasium.envs.registration import register
 import numpy as np
 
 register(
-    id="RearrangeOneRoom-v0",  # your chosen Gym ID
-    entry_point="miniworld.envs.jeparoom:RearrangeOneRoom",  # module path and class name
+    id="RearrangeOneRoom-v0",                      # your chosen Gym ID
+    entry_point="miniworld.envs.jeparoom:RearrangeOneRoom",        # module path and class name
     kwargs={
-        "size": 12,  # default size (optional)
-        "seed": np.random.randint(0, 2**31 - 1),  # default seed (optional)
+        "size": 12,                        # default size (optional)
+        "seed": np.random.randint(0, 2**31 - 1),                        # default seed (optional)
     },
-    max_episode_steps=500,  # match your env’s timeframe
+    max_episode_steps=500,                 # match your env’s timeframe
 )
-
 
 class ManualControl:
     def __init__(self, env, no_time_limit: bool, domain_rand: bool):
@@ -29,7 +27,7 @@ class ManualControl:
             self.env.max_episode_steps = math.inf
         if domain_rand:
             self.env.domain_rand = True
-
+            
     def run(self):
         print("============")
         print("Instructions")

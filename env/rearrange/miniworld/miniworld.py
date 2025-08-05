@@ -1,4 +1,4 @@
-import math_utils_utils
+import math
 from ctypes import POINTER
 from enum import IntEnum
 from typing import Optional, Tuple
@@ -289,7 +289,7 @@ class Room:
 
         # The point is inside if all the dot products are greater than zero
         return np.all(np.greater(dotNAP, 0))
-
+    
     def _gen_static_data(self, params, rng):
         """
         Generate polygons and static data for this room.
@@ -318,9 +318,7 @@ class Room:
         if isinstance(self.floor_tex, Texture):
             self.floor_texcs = gen_texcs_floor(self.floor_tex, self.floor_verts)
         else:
-            self.floor_texcs = np.zeros(
-                (self.floor_verts.shape[0], 2), dtype=np.float32
-            )
+            self.floor_texcs = np.zeros((self.floor_verts.shape[0], 2), dtype=np.float32)
 
         self.ceil_verts = np.flip(self.outline, axis=0) + self.wall_height * Y_VEC
 
@@ -357,7 +355,8 @@ class Room:
 
             if isinstance(self.wall_tex, Texture):
                 texcs = gen_texcs_wall(
-                    self.wall_tex, seg_start, min_y, seg_end - seg_start, max_y - min_y
+                    self.wall_tex, seg_start, min_y,
+                    seg_end - seg_start, max_y - min_y
                 )
             else:
                 texcs = np.zeros((4, 2), dtype=np.float32)
@@ -385,31 +384,25 @@ class Room:
                 max_y = portal["max_y"]
 
                 gen_seg_poly(edge_p0, side_vec, start_pos, end_pos, 0, min_y)
-                gen_seg_poly(
-                    edge_p0, side_vec, start_pos, end_pos, max_y, self.wall_height
-                )
+                gen_seg_poly(edge_p0, side_vec, start_pos, end_pos, max_y, self.wall_height)
 
                 if portal_idx < len(self.portals[wall_idx]) - 1:
                     next_start = self.portals[wall_idx][portal_idx + 1]["start_pos"]
                 else:
                     next_start = wall_width
 
-                gen_seg_poly(
-                    edge_p0, side_vec, end_pos, next_start, 0, self.wall_height
-                )
+                gen_seg_poly(edge_p0, side_vec, end_pos, next_start, 0, self.wall_height)
 
         self.wall_verts = np.array(self.wall_verts)
         self.wall_norms = np.array(self.wall_norms)
 
         self.wall_segs = (
-            np.array(self.wall_segs)
-            if self.wall_segs
+            np.array(self.wall_segs) if self.wall_segs
             else np.array([]).reshape(0, 2, 3)
         )
 
         self.wall_texcs = (
-            np.concatenate(self.wall_texcs)
-            if self.wall_texcs
+            np.concatenate(self.wall_texcs) if self.wall_texcs
             else np.array([]).reshape(0, 2)
         )
 
@@ -527,6 +520,7 @@ class Room:
     #         self.wall_texcs = np.concatenate(self.wall_texcs)
     #     else:
     #         self.wall_texcs = np.array([]).reshape(0, 2)
+
 
     def _render(self):
         # --- Floor ---
@@ -693,6 +687,7 @@ class MiniWorldEnv(gym.Env):
             self.shadow_window = pyglet.window.Window(width=1, height=1, visible=False)
         else:
             self.shadow_window = None
+
 
         # Enable depth testing and backface culling
         glEnable(GL_DEPTH_TEST)
@@ -916,17 +911,7 @@ class MiniWorldEnv(gym.Env):
 
         return obs, reward, termination, truncation, {}
 
-    def add_rect_room(
-        self,
-        min_x,
-        max_x,
-        min_z,
-        max_z,
-        wall_color=None,
-        floor_color=None,
-        ceil_color=None,
-        **kwargs,
-    ):
+    def add_rect_room(self, min_x, max_x, min_z, max_z, wall_color=None, floor_color=None, ceil_color=None, **kwargs):
         """
         Create a rectangular room with optional color customization.
         """
@@ -946,12 +931,10 @@ class MiniWorldEnv(gym.Env):
             wall_color=wall_color,
             floor_color=floor_color,
             ceil_color=ceil_color,
-            **kwargs,
+            **kwargs
         )
 
-    def add_room(
-        self, outline, wall_color=None, floor_color=None, ceil_color=None, **kwargs
-    ):
+    def add_room(self, outline, wall_color=None, floor_color=None, ceil_color=None, **kwargs):
         """
         Create a new room with optional color customization.
         """
@@ -964,7 +947,7 @@ class MiniWorldEnv(gym.Env):
             wall_color=wall_color,
             floor_color=floor_color,
             ceil_color=ceil_color,
-            **kwargs,
+            **kwargs
         )
         self.rooms.append(room)
 
@@ -1391,7 +1374,8 @@ class MiniWorldEnv(gym.Env):
         # This is necessary on Linux Nvidia drivers
         # ADAPTED: changed to fix the pyglet NoneTypeError on MacOS old line: self.shadow_window.switch_to()
         if self.shadow_window is not None:
-            self.shadow_window.switch_to()
+           self.shadow_window.switch_to()
+
 
         # Bind the frame buffer before rendering into it
         frame_buffer.bind()

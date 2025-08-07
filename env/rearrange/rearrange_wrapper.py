@@ -4,9 +4,9 @@ from utils import aggregate_dct  # Assumes this exists like in pusht
 import math
 
 class RearrangeOneRoomWrapper(RearrangeOneRoom):
-    def __init__(self, max_entities=4):
-        super().__init__(max_entities=max_entities)
-        self.action_dim = self.action_space.shape[0]
+    def __init__(self, size=2, seed=0, max_entities=4, **kwargs):
+        super().__init__(size=size, seed=seed, max_entities=max_entities, **kwargs)
+        self.action_dim = 1
 
     def sample_random_init_goal_states(self, seed):
         """

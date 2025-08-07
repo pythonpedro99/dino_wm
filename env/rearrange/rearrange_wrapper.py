@@ -2,6 +2,13 @@ import numpy as np
 from miniworld.envs.jeparoom import RearrangeOneRoom  # Adjust import path
 from utils import aggregate_dct  # Assumes this exists like in pusht
 import math
+import gymnasium as gym
+
+
+if not hasattr(gym.wrappers.TimeLimit, "__getattr__"):
+    def _forward_to_inner(self, name):
+        return getattr(self.env, name)        # delegate to wrapped env
+    gym.wrappers.TimeLimit.__getattr__ = _forward_to_inner
 
 class RearrangeOneRoomWrapper(RearrangeOneRoom):
     def __init__(self, size=2, seed=0, max_entities=4, **kwargs):

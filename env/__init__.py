@@ -9,7 +9,7 @@ register(
 )
 register(
     id="rearrange",
-    entry_point="env.rearrange.miniworld.envs.jeparoom:RearrangeOneRoom",
+    entry_point="env.rearrange.rearrange_wrapper:RearrangeOneRoomWrapper",
     kwargs={"size": 12},
     max_episode_steps=250,
 )

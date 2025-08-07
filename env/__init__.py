@@ -1,5 +1,6 @@
-from gym.envs.registration import register
-import gym
+import gymnasium as gym
+from gymnasium.envs.registration import register
+
 
 register(
     id="pusht",

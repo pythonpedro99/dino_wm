@@ -27,10 +27,12 @@ class RearrangeDataset(TrajDataset):
         meta_file = self.data_path / "metadata.json"
         with open(meta_file, "r") as f:
             meta = json.load(f)
+        self.meta = meta
 
         episodes = meta.get("episodes", [])
         if n_rollout is not None:
             episodes = episodes[:n_rollout]
+        self.episodes_meta = episodes
         self.seq_lengths = [ep["n_actions"] for ep in episodes]
 
         self.actions = []
@@ -79,13 +81,18 @@ class RearrangeDataset(TrajDataset):
         act = self.actions[idx][frames]
         state = torch.zeros(len(frames), self.state_dim)
         proprio = torch.zeros(len(frames), self.proprio_dim)
-
-        image = torch.as_tensor(obs_arr[frames])  # THWC
+        image = torch.as_tensor(obs_arr[frames]) 
         image = rearrange(image, "T H W C -> T C H W") / 255.0
         if self.transform:
             image = self.transform(image)
         obs = {"visual": image, "proprio": proprio}
-        return obs, act, state, {}
+        env_info = {}
+        if hasattr(self, "episodes_meta") and idx < len(self.episodes_meta):
+            env_info.update(dict(self.episodes_meta[idx]))
+        for key in ["env_id", "master_seed"]:
+            if key in getattr(self, "meta", {}):
+                env_info[key] = self.meta[key]
+        return obs, act, state, env_info
 
     def __getitem__(self, idx):
         return self.get_frames(idx, range(self.get_seq_length(idx)))

@@ -1,7 +1,6 @@
 import gymnasium as gym
 from gymnasium.envs.registration import register
 
-
 register(
     id="pusht",
     entry_point="env.pusht.pusht_wrapper:PushTWrapper",
@@ -14,9 +13,7 @@ register(
     kwargs={"size": 12},
     max_episode_steps=250,
 )
-
 env_id = "rearrange"
-
 if env_id in gym.envs.registry:
     print(f"✅ '{env_id}' is registered.")
 else:

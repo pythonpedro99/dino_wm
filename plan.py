@@ -239,18 +239,20 @@ class PlanWorkspace:
             observations, states, actions, env_info = (
                 self.sample_traj_segment_from_dset(traj_len=self.frameskip * self.goal_H + 1)
             )
-            self.env.update_env(env_info)
+            self.env.update_env(env_info) #TODO make a env.reset(trajectory seed)
 
             # get states from val trajs
             init_state = [x[0] for x in states]
             init_state = np.array(init_state)
             actions = torch.stack(actions)
+            print(actions)
             if self.goal_source == "random_action":
                 actions = torch.randn_like(actions)
             wm_actions = rearrange(actions, "b (t f) d -> b t (f d)", f=self.frameskip)
             exec_actions = self.data_preprocessor.denormalize_actions(actions)
+            print(f"exec_actions shape: {exec_actions.shape}, actions shape: {actions.shape}")
             # replay actions in env to get gt obses
-            rollout_obses, rollout_states = self.env.rollout(
+            rollout_obses, rollout_states = self.env.rollout( # TODO: rollout
                 self.eval_seed, init_state, exec_actions.numpy()
             )
             self.obs_0 = {
@@ -264,6 +266,10 @@ class PlanWorkspace:
             self.state_0 = init_state  # (b, d)
             self.state_g = rollout_states[:, -1]  # (b, d)
             self.gt_actions = wm_actions
+
+            # after rollout we need to reset the env with the seed
+            if self.env_name == "rearrange":
+                self.env.update_env(env_info)
 
     def sample_traj_segment_from_dset(self, traj_len):
         states = []

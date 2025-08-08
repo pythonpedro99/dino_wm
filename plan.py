@@ -136,7 +136,6 @@ class PlanWorkspace:
 
         # have different seeds for each planning instances
         self.eval_seed = [cfg_dict["seed"] * n + 1 for n in range(cfg_dict["n_evals"])]
-        print("eval_seed: ", self.eval_seed)
         self.n_evals = cfg_dict["n_evals"]
         self.goal_source = cfg_dict["goal_source"]
         self.goal_H = cfg_dict["goal_H"]
@@ -240,20 +239,20 @@ class PlanWorkspace:
             observations, states, actions, env_info = (
                 self.sample_traj_segment_from_dset(traj_len=self.frameskip * self.goal_H + 1)
             )
+            print(env_info)
+            print(states)
             self.env.update_env(env_info) #TODO make a env.reset(trajectory seed)
             
             # get states from val trajs
             init_state = [x[0] for x in states]
             init_state = np.array(init_state)
             actions = torch.stack(actions)
-            #print(actions)
             if self.goal_source == "random_action":
                 actions = torch.randn_like(actions)
             wm_actions = rearrange(actions, "b (t f) d -> b t (f d)", f=self.frameskip)
             exec_actions = self.data_preprocessor.denormalize_actions(actions)
-            #print(f"exec_actions shape: {exec_actions}")
             # replay actions in env to get gt obses
-            rollout_obses, rollout_states = self.env.rollout( # TODO: rollout
+            rollout_obses, rollout_states = self.env.rollout( 
                 self.eval_seed, init_state, exec_actions.numpy()
             )
             self.obs_0 = {

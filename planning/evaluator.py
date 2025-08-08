@@ -155,6 +155,7 @@ class PlanEvaluator:  # evaluator for planning
             logs
             successes
         """
+        print(f"states:{e_state},{self.state_g}")
         eval_results = self.env.eval_state(self.state_g, e_state)
         successes = eval_results['success']
 

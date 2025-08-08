@@ -1,5 +1,6 @@
 import os
 import gym
+import gymnasium as gym
 import json
 import hydra
 import random
@@ -14,15 +15,20 @@ from itertools import product
 from pathlib import Path
 from einops import rearrange
 from omegaconf import OmegaConf, open_dict
-
+import numpy as np
+from PIL import Image
 from env.venv import SubprocVectorEnv
 from custom_resolvers import replace_slash
 from preprocessor import Preprocessor
 from planning.evaluator import PlanEvaluator
 from utils import cfg_to_dict, seed
-
+import pyglet
+pyglet.options["headless"] = True
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 warnings.filterwarnings("ignore")
 log = logging.getLogger(__name__)
+
 
 ALL_MODEL_KEYS = [
     "encoder",
@@ -130,7 +136,6 @@ class PlanWorkspace:
 
         # have different seeds for each planning instances
         self.eval_seed = [cfg_dict["seed"] * n + 1 for n in range(cfg_dict["n_evals"])]
-        print("eval_seed: ", self.eval_seed)
         self.n_evals = cfg_dict["n_evals"]
         self.goal_source = cfg_dict["goal_source"]
         self.goal_H = cfg_dict["goal_H"]
@@ -234,8 +239,10 @@ class PlanWorkspace:
             observations, states, actions, env_info = (
                 self.sample_traj_segment_from_dset(traj_len=self.frameskip * self.goal_H + 1)
             )
-            self.env.update_env(env_info)
-
+            print(env_info)
+            print(states)
+            self.env.update_env(env_info) #TODO make a env.reset(trajectory seed)
+            
             # get states from val trajs
             init_state = [x[0] for x in states]
             init_state = np.array(init_state)
@@ -245,7 +252,7 @@ class PlanWorkspace:
             wm_actions = rearrange(actions, "b (t f) d -> b t (f d)", f=self.frameskip)
             exec_actions = self.data_preprocessor.denormalize_actions(actions)
             # replay actions in env to get gt obses
-            rollout_obses, rollout_states = self.env.rollout(
+            rollout_obses, rollout_states = self.env.rollout( 
                 self.eval_seed, init_state, exec_actions.numpy()
             )
             self.obs_0 = {
@@ -256,9 +263,13 @@ class PlanWorkspace:
                 key: np.expand_dims(arr[:, -1], axis=1)
                 for key, arr in rollout_obses.items()
             }
-            self.state_0 = init_state  # (b, d)
+            self.state_0 = rollout_states[:, 0]  # (b, d)
             self.state_g = rollout_states[:, -1]  # (b, d)
             self.gt_actions = wm_actions
+
+            # after rollout we need to reset the env with the seed
+            if self.env_name == "rearrange":
+                self.env.update_env(env_info)
 
     def sample_traj_segment_from_dset(self, traj_len):
         states = []
@@ -327,14 +338,17 @@ class PlanWorkspace:
             actions_init = self.gt_actions
         else:
             actions_init = None
+        print("planning: start")
         actions, action_len = self.planner.plan(
             obs_0=self.obs_0,
             obs_g=self.obs_g,
             actions=actions_init,
         )
+        print("planning: got actions")
         logs, successes, _, _ = self.evaluator.eval_actions(
             actions.detach(), action_len, save_video=True, filename="output_final"
         )
+        print("planning: eval done", logs)
         logs = {f"final_eval/{k}": v for k, v in logs.items()}
         self.wandb_run.log(logs)
         logs_entry = {

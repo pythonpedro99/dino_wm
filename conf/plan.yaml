@@ -23,12 +23,12 @@ hydra:
             "export MASTER_PORT=$(for port in $(shuf -i 30000-65500 -n 20); do if [[ $(netstat -tupln 2>&1 | grep $port | wc -l) -eq 0 ]] ; then echo $port; break; fi; done;)",]
 
 # model to load for planning
-ckpt_base_path: ./ # put absolute path here. Checkpoints will be loaded from ${ckpt_base_path}/outputs
-model_name: null
+ckpt_base_path: /content/drive/MyDrive/Model_checkpoints # put absolute path here. Checkpoints will be loaded from ${ckpt_base_path}/outputs
+model_name: dino
 model_epoch: latest
 
 seed: 99
-n_evals: 10
+n_evals: 1
 goal_source: 'dset' # 'random_state' or 'dset' or 'random_action' 
 goal_H: 5 # specifies how far away the goal is if goal_source is 'dset'
 n_plot_samples: 10

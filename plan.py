@@ -240,53 +240,18 @@ class PlanWorkspace:
             observations, states, actions, env_info = (
                 self.sample_traj_segment_from_dset(traj_len=self.frameskip * self.goal_H + 1)
             )
-            self.env.update_env(env_info)
-
-            # --- peek at the first sampled trajectory ---
-            print(f"env_info[0]: {env_info[0] if len(env_info)>0 else {}}")
-
-            obs0 = observations[0]           # dict: e.g. {"visual": (T,C,H,W), "proprio": (T,P)}
-            st0  = states[0]                 # np.ndarray (T, D)
-            act0 = actions[0]                # torch.Tensor (T, d) after your unsqueeze fix
-            for k, v in obs0.items():
-                if torch.is_tensor(v):
-                    vt = v
-                    vmin = float(vt.min())
-                    vmax = float(vt.max())
-                    print(f"  {k}: shape={tuple(vt.shape)}, dtype={vt.dtype}, min={vmin:.4f}, max={vmax:.4f}")
-                else:
-                    arr = np.asarray(v)
-                    print(f"  {k}: shape={arr.shape}, dtype={arr.dtype}, min={arr.min():.4f}, max={arr.max():.4f}")
-
-            print("states[0]:", st0.shape, st0.dtype)
-            print("actions[0]:", tuple(act0.shape), act0.dtype, " sample:", act0[:5].flatten().tolist())
-
-            # --- save first & last frames of 'visual' to files ---
-            vis = obs0.get("visual", None)
-            if vis is not None and vis.ndim == 4:  # (T, C, H, W)
-                def to_img(t):
-                    if torch.is_tensor(t):
-                        t = t.detach().cpu()
-                    if t.ndim == 3 and t.shape[0] in (1, 3):    # C,H,W -> H,W,C
-                        t = t.permute(1, 2, 0)
-                    t = (np.asarray(t) * 255.0).clip(0, 255).astype(np.uint8)
-                    return t
-                Image.fromarray(to_img(vis[0])).save("debug_first.png")
-                Image.fromarray(to_img(vis[-1])).save("debug_last.png")
-                print("Saved debug_first.png and debug_last.png")
-            else:
-                print("No 'visual' in obs or unexpected shape:", None if vis is None else tuple(vis.shape))
-
+            self.env.update_env(env_info) #TODO make a env.reset(trajectory seed)
+            
             # get states from val trajs
             init_state = [x[0] for x in states]
             init_state = np.array(init_state)
             actions = torch.stack(actions)
-            print(actions)
+            #print(actions)
             if self.goal_source == "random_action":
                 actions = torch.randn_like(actions)
             wm_actions = rearrange(actions, "b (t f) d -> b t (f d)", f=self.frameskip)
             exec_actions = self.data_preprocessor.denormalize_actions(actions)
-            print(f"exec_actions shape: {exec_actions.shape}, actions shape: {actions.shape}")
+            #print(f"exec_actions shape: {exec_actions}")
             # replay actions in env to get gt obses
             rollout_obses, rollout_states = self.env.rollout( # TODO: rollout
                 self.eval_seed, init_state, exec_actions.numpy()
@@ -374,14 +339,17 @@ class PlanWorkspace:
             actions_init = self.gt_actions
         else:
             actions_init = None
+        print("planning: start")
         actions, action_len = self.planner.plan(
             obs_0=self.obs_0,
             obs_g=self.obs_g,
             actions=actions_init,
         )
+        print("planning: got actions")
         logs, successes, _, _ = self.evaluator.eval_actions(
             actions.detach(), action_len, save_video=True, filename="output_final"
         )
+        print("planning: eval done", logs)
         logs = {f"final_eval/{k}": v for k, v in logs.items()}
         self.wandb_run.log(logs)
         logs_entry = {

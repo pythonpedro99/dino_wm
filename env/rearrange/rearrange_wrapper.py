@@ -24,10 +24,28 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         pass
 
     def update_env(self, env_info):
-        """
-        Optional: Update any metadata if needed
-        """
-        print("Updating environment with info:", env_info)
+        """Reset env using the dataset seed (prefer master_seed, fallback to seed)."""
+        if not env_info:
+            return True
+        s = env_info.get("master_seed", env_info.get("seed"))
+        if s is None:
+            return True
+        try:
+            s = int(s)
+        except Exception:
+            s = int(np.asarray(s).item())
+        try:
+            self.reset(seed=s)
+        except TypeError:
+            try:
+                self.seed(s)
+            except Exception:
+                pass
+            self.reset()
+
+        return True
+
+        
 
     def eval_state(self, goal_state, cur_state):
         """
@@ -53,13 +71,44 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         """
         pass
 
-    def step(self, action):
-       pass
-
     def step_multiple(self, actions):
         print("Stepping with actions:", actions)
 
-    def rollout(self, seed, init_state, actions):
-        print("Rolling out with seed:", seed)
-        print("Initial state:", init_state)
-        print("Actions shape:", actions)
+    def rollout(self, _seed_unused, _init_state_unused, actions):
+        """Step given actions, capture obs only. No reset, no states."""
+        def to_chw01(img):
+            # assume HWC uint8; convert to CHW float32 in [0,1]
+            img = np.asarray(img)
+            if img.ndim == 2:                      # H,W -> H,W,1
+                img = img[..., None]
+            if img.shape[-1] in (1, 3, 4):         # H,W,C
+                img = img.astype(np.float32) / 255.0
+                img = img.transpose(2, 0, 1)       # C,H,W
+            return img
+
+        # initial frame (no reset here)
+        try:
+            first = self.render_obs()              # MiniWorld helper
+        except AttributeError:
+            first = self.render()                  # fallback
+        frames = [to_chw01(first)]
+
+        A = np.asarray(actions)
+        T = A.shape[0]
+
+        for t in range(T):
+            a = A[t]
+            if isinstance(self.action_space, gym.spaces.Discrete):
+                a = int(a) if np.ndim(a) == 0 else int(np.asarray(a).reshape(-1)[0])
+            else:
+                a = np.asarray(a, dtype=np.float32)
+
+            obs, reward, terminated, truncated, info = self.step(a)
+            frames.append(to_chw01(obs))
+            if terminated or truncated:
+                break
+
+        visual = np.stack(frames, axis=0)  # (T+1, C, H, W)
+        proprio = np.zeros((visual.shape[0], getattr(self, "proprio_dim", 0)), dtype=np.float32)
+        return {"visual": visual, "proprio": proprio}, None
+        

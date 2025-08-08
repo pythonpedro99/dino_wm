@@ -21,6 +21,7 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         You need to define what "state" means for your task.
         This example uses agent (x, z, yaw) only.
         """
+        pass
 
     def update_env(self, env_info):
         """

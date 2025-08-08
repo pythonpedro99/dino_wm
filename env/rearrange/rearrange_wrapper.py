@@ -1,4 +1,3 @@
-
 import numpy as np
 from miniworld.envs.jeparoom import RearrangeOneRoom  # Adjust import path
 from utils import aggregate_dct  # Assumes this exists like in pusht
@@ -32,41 +31,38 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
       self._target_idx = None
       if not ents or not isinstance(self.target_name, str):
           return
-      # parse "Key_2" -> cls_hint="Key", idx_hint=2
+
+      # Parse "Box_3" -> cls_hint="Box", idx_hint=3 (global index)
       parts = self.target_name.split("_", 1)
       cls_hint = parts[0]
       idx_hint = int(parts[1]) if len(parts) == 2 and parts[1].isdigit() else None
-      cand = [(i, e) for i, e in enumerate(ents)
-              if type(e).__name__.lower() == cls_hint.lower()]
-      if not cand:
-          cand = [(i, e) for i, e in enumerate(ents) if type(e).__name__ != "Agent"]
-      if not cand:
-          return
-      self._target_idx = cand[idx_hint][0] if idx_hint is not None and 0 <= idx_hint < len(cand) else cand[0][0]
+      cls_hint_l = cls_hint.lower()
+
+      # 1) Prefer exact global index if provided and valid
+      if idx_hint is not None and 0 <= idx_hint < len(ents):
+          ent = ents[idx_hint]
+          if type(ent).__name__.lower() == cls_hint_l:
+              self._target_idx = idx_hint
+              return
+
+      # 2) Otherwise, pick the first entity of that class
+      for i, e in enumerate(ents):
+          if type(e).__name__.lower() == cls_hint_l:
+              self._target_idx = i
+              return
+
+      # 3) Last resort: first non-Agent
+      for i, e in enumerate(ents):
+          if type(e).__name__ != "Agent":
+              self._target_idx = i
+              return
+
+
 
     def update_env(self, env_info):
         """Reset env using the dataset seed (prefer master_seed, fallback to seed)."""
         self.target_name = env_info.get("object")
-        if not env_info:
-            return True
-        s = env_info.get("master_seed", env_info.get("seed"))
-        if s is None:
-            return True
-        try:
-            s = int(s)
-        except Exception:
-            s = int(np.asarray(s).item())
-        try:
-            obs, _ = self.reset(seed=s)
-            self._resolve_target_index()
-        except TypeError:
-            try:
-                self.seed(s)
-            except Exception:
-                pass
-            obs, _ = self.reset()
-            self._resolve_target_index()
-        return True
+        self.seed = env_info.get("seed")
 
         
 
@@ -75,6 +71,8 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
       Evaluate success based on 3D position closeness.
       goal_state, cur_state: (3,) or (T, 3) arrays/lists with (x, y, z)
       """
+      import numpy as np
+
       goal_state = np.array(goal_state, dtype=np.float32)
       cur_state = np.array(cur_state, dtype=np.float32)
 
@@ -112,6 +110,11 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
     def rollout(self, _seed_unused, _init_state_unused, actions):
         """Step given actions, capture obs only. No reset, no states."""
         states = []
+        print(self.seed)
+        first, _ = self.reset(seed=self.seed)
+        for idx, ent in enumerate(self.unwrapped.entities):
+            print(f"Entity {idx}: {ent}  pos={ent.pos}")
+        self._resolve_target_index
         def to_chw01(img):
             # assume HWC uint8; convert to CHW float32 in [0,1]
             img = np.asarray(img)
@@ -123,15 +126,9 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
             return img
 
         # initial frame (no reset here)
-        try:
-            first = self.render_obs()
-            print(f"First frame: {first}")              # MiniWorld helper
-        except AttributeError:
-            first = self.render()                  # fallback
+                         # fallback
         frames = [to_chw01(first)]
-        print(self.target_name)
-        print(self.unwrapped.entities[self._target_idx])
-        states.append(np.array(self.unwrapped.entities[self._target_idx].pos, dtype=np.float32))
+        states.append(np.array(self.unwrapped.entities[0].pos, dtype=np.float32))
 
         A = np.asarray(actions)
         T = A.shape[0]
@@ -145,7 +142,9 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
 
             obs, reward, terminated, truncated, info = self.step(a)
             frames.append(to_chw01(obs))
-            states.append(np.array(self.unwrapped.entities[self._target_idx].pos, dtype=np.float32))
+            print(self.target_name)
+            #print(self.unwrapped.entities[self._target_idx])
+            states.append(np.array(self.unwrapped.entities[0].pos, dtype=np.float32))
             if terminated or truncated:
                 break
 

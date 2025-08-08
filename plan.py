@@ -240,7 +240,7 @@ class PlanWorkspace:
                 self.sample_traj_segment_from_dset(traj_len=self.frameskip * self.goal_H + 1)
             )
             print(env_info)
-            print(states)
+            #print(states)
             self.env.update_env(env_info) #TODO make a env.reset(trajectory seed)
             
             # get states from val trajs

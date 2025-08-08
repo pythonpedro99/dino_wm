@@ -240,17 +240,14 @@ class PlanWorkspace:
             observations, states, actions, env_info = (
                 self.sample_traj_segment_from_dset(traj_len=self.frameskip * self.goal_H + 1)
             )
-            self.env.update_env(env_info) #TODO make a env.reset(trajectory seed)
-            
+            self.env.update_env(env_info)
+
             # --- peek at the first sampled trajectory ---
-            print(f"#trajectories: {len(observations)}")
             print(f"env_info[0]: {env_info[0] if len(env_info)>0 else {}}")
 
             obs0 = observations[0]           # dict: e.g. {"visual": (T,C,H,W), "proprio": (T,P)}
             st0  = states[0]                 # np.ndarray (T, D)
             act0 = actions[0]                # torch.Tensor (T, d) after your unsqueeze fix
-
-            print("obs0 keys:", list(obs0.keys()))
             for k, v in obs0.items():
                 if torch.is_tensor(v):
                     vt = v

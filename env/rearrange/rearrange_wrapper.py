@@ -14,6 +14,7 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
     def __init__(self, size=2, seed=0, max_entities=4, **kwargs):
         super().__init__(size=size, seed=seed, max_entities=max_entities, **kwargs)
         self.action_dim = 1
+        self.proprio_dim = 1
 
     def sample_random_init_goal_states(self, seed):
         """
@@ -35,14 +36,14 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         except Exception:
             s = int(np.asarray(s).item())
         try:
-            self.reset(seed=s)
+            obs, _ = self.reset(seed=s)
+            
         except TypeError:
             try:
                 self.seed(s)
             except Exception:
                 pass
-            self.reset()
-
+            obs, _ = self.reset()
         return True
 
         
@@ -59,11 +60,6 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         """
         pass
 
-    def reset(self, seed=None):
-        """
-        Overridden to return image obs and state vector
-        """
-        pass
 
     def prepare(self, seed, init_state):
         """
@@ -90,7 +86,8 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         try:
             first = self.render_obs()              # MiniWorld helper
         except AttributeError:
-            first = self.render()                  # fallback
+            first = self.render()
+        print(first)                  # fallback
         frames = [to_chw01(first)]
 
         A = np.asarray(actions)
@@ -104,11 +101,13 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
                 a = np.asarray(a, dtype=np.float32)
 
             obs, reward, terminated, truncated, info = self.step(a)
+            #print(obs)
             frames.append(to_chw01(obs))
             if terminated or truncated:
                 break
 
         visual = np.stack(frames, axis=0)  # (T+1, C, H, W)
         proprio = np.zeros((visual.shape[0], getattr(self, "proprio_dim", 0)), dtype=np.float32)
-        return {"visual": visual, "proprio": proprio}, None
-        
+        states = np.zeros((visual.shape[0], 1), dtype=np.float32)
+
+        return {"visual": visual, "proprio": proprio}, states

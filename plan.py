@@ -264,7 +264,7 @@ class PlanWorkspace:
                 key: np.expand_dims(arr[:, -1], axis=1)
                 for key, arr in rollout_obses.items()
             }
-            self.state_0 = init_state  # (b, d)
+            self.state_0 = rollout_states[:, 0]  # (b, d)
             self.state_g = rollout_states[:, -1]  # (b, d)
             self.gt_actions = wm_actions
 

@@ -45,7 +45,6 @@ class Preprocessor:
 
     def preprocess_obs_visual(self, obs_visual):
       # in Preprocessor.transform_obs_visual
-      print("visual shape BEFORE preprocess:", tuple(obs_visual.shape))
       return rearrange(obs_visual, "b t h w c -> b t c h w") / 255.0
 
     def transform_obs_visual(self, obs_visual):

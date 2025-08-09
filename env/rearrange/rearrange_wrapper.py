@@ -17,7 +17,8 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         self.action_dim = 1
         self.proprio_dim = 1
         self.target_name = "object"
-        self._target_idx = None
+        self.ent_idx = None
+        self.state_source = "entity"
 
     def sample_random_init_goal_states(self, seed):
         """
@@ -39,72 +40,43 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
             self.np_rng = np.random.default_rng(seed)
 
         # helpful debug line; for subprocess workers use flush or file logging
-        print(f"[Wrapper.reset] seed={seed}", flush=True)
+        #print(f"[Wrapper.reset] seed={seed}", flush=True)
 
         obs, info = super().reset(seed=seed, options=options)
         return obs, info
 
     def _resolve_target_index(self):
-      ents = list(getattr(self.unwrapped, "entities", []))
-      self._target_idx = None
-      if not ents or not isinstance(self.target_name, str):
-          return
-
-      # Parse "Box_3" -> cls_hint="Box", idx_hint=3 (global index)
-      parts = self.target_name.split("_", 1)
-      cls_hint = parts[0]
-      idx_hint = int(parts[1]) if len(parts) == 2 and parts[1].isdigit() else None
-      cls_hint_l = cls_hint.lower()
-
-      # 1) Prefer exact global index if provided and valid
-      if idx_hint is not None and 0 <= idx_hint < len(ents):
-          ent = ents[idx_hint]
-          if type(ent).__name__.lower() == cls_hint_l:
-              self._target_idx = idx_hint
-              return
-
-      # 2) Otherwise, pick the first entity of that class
-      for i, e in enumerate(ents):
-          if type(e).__name__.lower() == cls_hint_l:
-              self._target_idx = i
-              return
-
-      # 3) Last resort: first non-Agent
-      for i, e in enumerate(ents):
-          if type(e).__name__ != "Agent":
-              self._target_idx = i
-              return
-
+      cls, idx_s = self.target_name.split("_", 1)
+      idx = int(idx_s)
+      ents = getattr(self.unwrapped, "entities", [])
+      if not (0 <= idx < len(ents)):
+          print(f"[warn] target_name {self.target_name}: index {idx} out of range (len={len(ents)})")
+      elif ents[idx].__class__.__name__ != cls:
+          print(f"[warn] target_name {self.target_name}: entities[{idx}] is {ents[idx].__class__.__name__}, expected {cls}")
+      self.ent_idx = idx
+      
 
 
     def update_env(self, env_info):
         """Reset env using the dataset seed (prefer master_seed, fallback to seed)."""
         self.target_name = env_info.get("object")
+        print(f"updated env with: {self.target_name}")
         self.seed = env_info.get("seed")
         
-    def eval_state(self, goal_state, cur_state):
-      """
-      Evaluate success based on 3D position closeness.
-      goal_state, cur_state: (3,) or (T, 3) arrays/lists with (x, y, z)
-      """
-      import numpy as np
+    def eval_state(self, goal_state, cur_state, threshold: float = 0.2):
+        """
+        Compute 3D distance between goal and current single states.
+        Accepts (3|4,) or (T, 3|4); ignores yaw and uses the last frame if a sequence.
+        """
+        g = np.asarray(goal_state, dtype=np.float32)
+        c = np.asarray(cur_state, dtype=np.float32)
+        if g.ndim > 1: g = g[-1]
+        if c.ndim > 1: c = c[-1]
 
-      goal_state = np.array(goal_state, dtype=np.float32)
-      cur_state = np.array(cur_state, dtype=np.float32)
+        dist = float(np.linalg.norm(g[:3] - c[:3]))  # ignore yaw
+        return {"success": dist <= threshold, "distance": dist}
 
-      # If inputs are sequences over time, take the last frame
-      if goal_state.ndim > 1:
-          goal_state = goal_state[-1]
-      if cur_state.ndim > 1:
-          cur_state = cur_state[-1]
 
-      # Distance threshold in meters
-      threshold = 0.2
-
-      dist = np.linalg.norm(goal_state - cur_state)
-      success = dist <= threshold
-
-      return {"success": success, "distance": dist}
 
 
     def get_agent_state(self):
@@ -122,50 +94,63 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
 
     def step_multiple(self, actions):
         print("Stepping with actions:", actions)
+    
+    def get_agent_state(self):
+        # (x, y, z, yaw)
+        p = np.asarray(getattr(self.agent, "pos", (0.0, 0.0, 0.0)), dtype=np.float32)
+        yaw = float(getattr(self.agent, "dir", 0.0))
+        return np.array([p[0], p[1], p[2]], dtype=np.float32)
+
+    def get_entity_state(self, idx: int):
+        # (x, y, z, yaw) for the target entity
+        e = self.unwrapped.entities[idx]
+        p = np.asarray(getattr(e, "pos", (np.nan, np.nan, np.nan)), dtype=np.float32)
+        yaw = float(getattr(e, "dir", 0.0))
+        return np.array([p[0], p[1], p[2]], dtype=np.float32)
 
     def rollout(self, _seed_unused, _init_state_unused, actions):
-        """Step given actions, capture obs only. No reset, no states."""
-        states = []
-        print(self.seed)
+        states_list = []
+
         first, _ = self.reset(seed=self.seed)
-        for idx, ent in enumerate(self.unwrapped.entities):
-            print(f"Entity {idx}: {ent}  pos={ent.pos}")
-        self._resolve_target_index
+        self._resolve_target_index()
+        if self.ent_idx is None:
+            raise RuntimeError(f"Bad target_name '{self.target_name}'")
+
         def to_chw01(img):
-            # assume HWC uint8; convert to CHW float32 in [0,1]
             img = np.asarray(img)
-            if img.ndim == 2:                      # H,W -> H,W,1
+            if img.ndim == 2:
                 img = img[..., None]
-            if img.shape[-1] in (1, 3, 4):         # H,W,C
+            if img.shape[-1] in (1, 3, 4):
                 img = img.astype(np.float32) / 255.0
-                img = img.transpose(2, 0, 1)       # C,H,W
+                img = img.transpose(2, 0, 1)
             return img
 
-        # initial frame (no reset here)
-                         # fallback
         frames = [to_chw01(first)]
-        states.append(np.array(self.unwrapped.entities[0].pos, dtype=np.float32))
+
+        # initial states: (agent, entity)
+        states_list.append((self.get_agent_state(), self.get_entity_state(self.ent_idx)))
 
         A = np.asarray(actions)
-        T = A.shape[0]
-
-        for t in range(T):
-            a = A[t]
-            if isinstance(self.action_space, gym.spaces.Discrete):
-                a = int(a) if np.ndim(a) == 0 else int(np.asarray(a).reshape(-1)[0])
-            else:
-                a = np.asarray(a, dtype=np.float32)
-
+        for t in range(A.shape[0]):
+            a = int(A[t]) if isinstance(self.action_space, gym.spaces.Discrete) else np.asarray(A[t], dtype=np.float32)
             obs, reward, terminated, truncated, info = self.step(a)
             frames.append(to_chw01(obs))
-            print(self.target_name)
-            #print(self.unwrapped.entities[self._target_idx])
-            states.append(np.array(self.unwrapped.entities[0].pos, dtype=np.float32))
+
+            states_list.append((self.get_agent_state(), self.get_entity_state(self.ent_idx)))
+
             if terminated or truncated:
                 break
 
-        visual = np.stack(frames, axis=0)  # (T+1, C, H, W)
+        visual  = np.stack(frames, axis=0)
         proprio = np.zeros((visual.shape[0], getattr(self, "proprio_dim", 0)), dtype=np.float32)
-        states = np.stack(states, axis=0)   
-        
+
+        # build (T+1, d) trajectories
+        agent_traj  = np.stack([a for (a, e) in states_list], axis=0)
+        entity_traj = np.stack([e for (a, e) in states_list], axis=0)
+
+        # pick ONE based on flag; default to "entity"
+        src = getattr(self, "state_source", "entity")
+        states = agent_traj if str(src).lower().startswith("agent") else entity_traj
+
         return {"visual": visual, "proprio": proprio}, states
+

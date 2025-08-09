@@ -239,9 +239,8 @@ class PlanWorkspace:
             observations, states, actions, env_info = (
                 self.sample_traj_segment_from_dset(traj_len=self.frameskip * self.goal_H + 1)
             )
-            print(env_info)
-            #print(states)
-            self.env.update_env(env_info) #TODO make a env.reset(trajectory seed)
+            
+            self.env.update_env(env_info)
             
             # get states from val trajs
             init_state = [x[0] for x in states]
@@ -263,13 +262,10 @@ class PlanWorkspace:
                 key: np.expand_dims(arr[:, -1], axis=1)
                 for key, arr in rollout_obses.items()
             }
+            
             self.state_0 = rollout_states[:, 0]  # (b, d)
             self.state_g = rollout_states[:, -1]  # (b, d)
             self.gt_actions = wm_actions
-
-            # after rollout we need to reset the env with the seed
-            if self.env_name == "rearrange":
-                self.env.update_env(env_info)
 
     def sample_traj_segment_from_dset(self, traj_len):
         states = []

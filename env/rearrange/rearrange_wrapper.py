@@ -3,6 +3,7 @@ from miniworld.envs.jeparoom import RearrangeOneRoom  # Adjust import path
 from utils import aggregate_dct  # Assumes this exists like in pusht
 import math
 import gymnasium as gym
+import random
 
 
 if not hasattr(gym.wrappers.TimeLimit, "__getattr__"):
@@ -25,6 +26,23 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         This example uses agent (x, z, yaw) only.
         """
         pass
+    
+    def reset(self, *, seed=None, options=None):
+        # keep seed behavior explicit & deterministic
+        if seed is None:
+            seed = getattr(self, "seed", None)
+
+        if seed is not None:
+            seed = int(seed)
+            # your custom RNGs used by _gen_world()
+            self.rng = random.Random(seed)
+            self.np_rng = np.random.default_rng(seed)
+
+        # helpful debug line; for subprocess workers use flush or file logging
+        print(f"[Wrapper.reset] seed={seed}", flush=True)
+
+        obs, info = super().reset(seed=seed, options=options)
+        return obs, info
 
     def _resolve_target_index(self):
       ents = list(getattr(self.unwrapped, "entities", []))
@@ -63,9 +81,7 @@ class RearrangeOneRoomWrapper(RearrangeOneRoom):
         """Reset env using the dataset seed (prefer master_seed, fallback to seed)."""
         self.target_name = env_info.get("object")
         self.seed = env_info.get("seed")
-
         
-
     def eval_state(self, goal_state, cur_state):
       """
       Evaluate success based on 3D position closeness.
